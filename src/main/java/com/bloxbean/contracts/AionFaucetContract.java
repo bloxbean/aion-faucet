@@ -201,8 +201,14 @@ public class AionFaucetContract {
         minBlockNoDelay = blockDelay;
     }
 
+    @Callable
     public static long getMinBlockDelay() {
         return minBlockNoDelay;
+    }
+
+    @Callable
+    public static Address getOwner() {
+        return owner;
     }
 
     /**
