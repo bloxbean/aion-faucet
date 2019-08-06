@@ -21,6 +21,7 @@ import static avm.Blockchain.*;
  */
 public class AionFaucetContract {
 
+    public static final int MAX_NO_OF_TRIES = 3;
     @Initializable
     private static Address owner;
 
@@ -43,6 +44,7 @@ public class AionFaucetContract {
     public static class AccountDetails {
         private BigInteger total;
         private long lastRequestBlockNo;
+        private int retryCount; //Total no of request in an allowed perid
     }
 
     /**
@@ -162,6 +164,11 @@ public class AionFaucetContract {
             accountDetails.lastRequestBlockNo = getBlockNumber();
             accountDetails.total = accountDetails.total.add(ONETIME_TRANSFER_AMOUNT);
 
+            if(accountDetails.retryCount >= MAX_NO_OF_TRIES) //reset the counter
+                accountDetails.retryCount = 1;
+            else
+                accountDetails.retryCount++;
+
             recipients.put(getCaller(), accountDetails);
 
             println("Topup was successful. " + getBalance(getCaller()) + " - " + getBalanceOfThisContract());
@@ -177,10 +184,15 @@ public class AionFaucetContract {
         if (accountDetails == null)
             return true;
 
-        if (Blockchain.getBlockNumber() - accountDetails.lastRequestBlockNo >= minBlockNoDelay)
+        if (Blockchain.getBlockNumber() - accountDetails.lastRequestBlockNo >= minBlockNoDelay) {
+            accountDetails.retryCount = 0; //reset retryCount
             return true;
-        else
-            return false;
+        } else {
+            if(accountDetails.retryCount < MAX_NO_OF_TRIES) //Can try MAX_NO_OF_TRIES with the time limit
+                return true;
+            else
+                return false;
+        }
     }
 
     @Callable

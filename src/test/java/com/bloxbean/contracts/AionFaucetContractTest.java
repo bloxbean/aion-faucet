@@ -165,6 +165,35 @@ public class AionFaucetContractTest {
     }
 
     @Test
+    public void whenTopupWithMaxTryLimitThenOk() {
+        setMinBlockDelay(3);
+        addOperator(operator1);
+        register(operator1, dev1, new BigInteger("200000000000000000"));
+        Assert.assertEquals(new BigInteger("200000000000000000"), avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
+
+        topup(dev1);
+        topup(dev1);
+        topup(dev1);
+
+        for(int i=0; i<4; i++)
+            avmRule.kernel.generateBlock();
+
+        topup(dev1);
+    }
+
+    @Test(expected = AssertionError.class)
+    public void whenTopupWithMaxTryLimitThenException() {
+        setMinBlockDelay(3);
+        addOperator(operator1);
+        register(operator1, dev1, new BigInteger("200000000000000000"));
+        Assert.assertEquals(new BigInteger("200000000000000000"), avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
+
+        topup(dev1);
+        topup(dev1);
+        topup(dev1);
+        topup(dev1);
+    }
+    @Test
     public void whenTopupThenCheckBalance() {
         setMinBlockDelay(3);
         addOperator(operator1);
@@ -172,9 +201,12 @@ public class AionFaucetContractTest {
         register(operator1, dev1, new BigInteger("200000000000000000"));
         Assert.assertEquals(new BigInteger("200000000000000000"), avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
 
+        topup(dev1);
         for(int i=0; i< 4; i++)
             avmRule.kernel.generateBlock();
 
+        topup(dev1);
+        topup(dev1);
         topup(dev1);
 
         Assert.assertTrue(ONETIME_TRANSFER_AMOUNT.compareTo(avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray()))) == -1);
