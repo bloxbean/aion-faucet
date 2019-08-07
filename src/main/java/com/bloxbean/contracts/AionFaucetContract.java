@@ -65,6 +65,8 @@ public class AionFaucetContract {
             //transfer
             Blockchain.call(address, operatorTransferBalance, new byte[0], getRemainingEnergy());
         }
+
+        FaucetEvent.operatorAdded(address);
     }
 
     /**
@@ -78,6 +80,8 @@ public class AionFaucetContract {
         require(operators.contains(address));
 
         operators.remove(address);
+
+        FaucetEvent.operatorRemoved(address);
     }
 
     /**
@@ -126,6 +130,8 @@ public class AionFaucetContract {
             accountDetails.total = amount;
 
             recipients.put(toAddress, accountDetails);
+
+            FaucetEvent.addressRegistered(toAddress);
         } else {
             println("Transfer failed to address : " + toAddress);
         }
@@ -170,6 +176,8 @@ public class AionFaucetContract {
                 accountDetails.retryCount++;
 
             recipients.put(getCaller(), accountDetails);
+
+            FaucetEvent.topup(getCaller(), ONETIME_TRANSFER_AMOUNT);
 
             println("Topup was successful. " + getBalance(getCaller()) + " - " + getBalanceOfThisContract());
         } else {

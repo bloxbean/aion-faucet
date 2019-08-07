@@ -50,7 +50,7 @@ public class AionFaucetContractTest {
 
         //Deploy dapp as owner argument
         byte[] deploymentArgs = ABIUtil.encodeDeploymentArguments(owner);
-        byte[] dapp = avmRule.getDappBytes(AionFaucetContract.class, deploymentArgs, 1, AionMap.class, AionSet.class);
+        byte[] dapp = avmRule.getDappBytes(AionFaucetContract.class, deploymentArgs, 1, FaucetEvent.class, AionMap.class, AionSet.class);
         dappAddr = avmRule.deploy(from, BigInteger.ZERO, dapp).getDappAddress();
 
         //add sufficient aion to the default account
