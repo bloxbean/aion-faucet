@@ -22,4 +22,12 @@ public class FaucetEvent {
     public static void topup(Address address, BigInteger balance) {
         Blockchain.log("TopUp".getBytes(), address.toByteArray(), balance.toByteArray());
     }
+
+    public static void maximumDailyRetryLimitReached(Address address, String noOfTimes) {
+        Blockchain.log("Error".getBytes(), ("Maximum daily retries : " + noOfTimes).getBytes());
+    }
+
+    public static void addressNotRegistered() {
+        Blockchain.log("Error".getBytes(), "Address is not registered yet".getBytes());
+    }
 }

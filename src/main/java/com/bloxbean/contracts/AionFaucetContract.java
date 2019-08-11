@@ -160,7 +160,7 @@ public class AionFaucetContract {
     @Callable
     public static void topUp() {
         require(canRequest(getCaller()));
-        require(recipients.get(getCaller()) != null);
+        require(isRegistered());
 
         Result result = call(getCaller(), ONETIME_TRANSFER_AMOUNT, new byte[0], getRemainingEnergy());
 
@@ -198,8 +198,21 @@ public class AionFaucetContract {
         } else {
             if(accountDetails.retryCount < MAX_NO_OF_TRIES) //Can try MAX_NO_OF_TRIES with the time limit
                 return true;
-            else
+            else {
+                FaucetEvent.maximumDailyRetryLimitReached(address, String.valueOf(accountDetails.retryCount));
                 return false;
+            }
+        }
+    }
+
+    private static boolean isRegistered() {
+        boolean isRegistered = recipients.get(getCaller()) != null;
+
+        if(isRegistered) {
+            return true;
+        } else {
+            FaucetEvent.addressNotRegistered();
+            return false;
         }
     }
 
@@ -224,6 +237,7 @@ public class AionFaucetContract {
      */
     @Callable
     public static void destruct() {
+        onlyOwner();
         Blockchain.selfDestruct(owner);
     }
 

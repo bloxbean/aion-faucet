@@ -213,6 +213,13 @@ public class AionFaucetContractTest {
 
     }
 
+    @Test(expected = AssertionError.class)
+    public void whenTopupWithoutRegistrationThenError() {
+        setMinBlockDelay(3);
+        addOperator(operator1);
+
+        topup(dev1);
+    }
 
     private void addOperator(Address operator) {
         byte[] txData = ABIUtil.encodeMethodArguments("addOperator", operator);
