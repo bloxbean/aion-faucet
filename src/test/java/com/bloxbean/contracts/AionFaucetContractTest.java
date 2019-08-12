@@ -156,11 +156,29 @@ public class AionFaucetContractTest {
         addOperator(operator2);
 
         register(operator1, dev1, ONE_AION);
+        long blockNo = avmRule.kernel.getBlockNumber();
 
-        Assert.assertEquals(1, getRecipients().length);
+        Assert.assertEquals(1, getTotalRecipients());
+        Assert.assertEquals(true, isRecipientAddressRegistered(dev1));
+        Assert.assertEquals(false, isRecipientAddressRegistered(dev2));
 
+        //Check block no
+        Assert.assertEquals(blockNo, getRecipientLastRequestBlockNo(dev1));
+        //check total
+        Assert.assertEquals(0, getRecipientRetryCount(dev1));
+
+        avmRule.kernel.generateBlock();
         register(operator1, dev2, ONE_AION);
-        Assert.assertEquals(2, getRecipients().length);
+        blockNo = avmRule.kernel.getBlockNumber();
+
+        Assert.assertEquals(2, getTotalRecipients());
+        Assert.assertEquals(true, isRecipientAddressRegistered(dev1));
+        Assert.assertEquals(true, isRecipientAddressRegistered(dev2));
+
+        //Check block no
+        Assert.assertEquals(blockNo, getRecipientLastRequestBlockNo(dev2));
+        //check total
+        Assert.assertEquals(0, getRecipientRetryCount(dev2));
 
     }
 
@@ -283,17 +301,56 @@ public class AionFaucetContractTest {
         Assert.assertTrue(status.isSuccess());
     }
 
-    private Address[] getRecipients() {
-        byte[] txData = ABIUtil.encodeMethodArguments("getRecipients");
+    private long getTotalRecipients() {
+        byte[] txData = ABIUtil.encodeMethodArguments("getTotalRecipients");
         AvmRule.ResultWrapper result = avmRule.call(from, dappAddr, BigInteger.ZERO, txData);
         TransactionStatus status1 = result.getReceiptStatus();
         Assert.assertTrue(status1.isSuccess());
 
         byte[] data = result.getTransactionResult().copyOfTransactionOutput().get();
 
-        Address[] addresses = (Address [])result.getDecodedReturnData();
+        long totalRecipients = (long)result.getDecodedReturnData();
 
-        return addresses;
+        return totalRecipients;
+    }
+
+    private boolean isRecipientAddressRegistered(Address address) {
+        byte[] txData = ABIUtil.encodeMethodArguments("isAddressRegistered", address);
+        AvmRule.ResultWrapper result = avmRule.call(from, dappAddr, BigInteger.ZERO, txData);
+        TransactionStatus status1 = result.getReceiptStatus();
+        Assert.assertTrue(status1.isSuccess());
+
+        byte[] data = result.getTransactionResult().copyOfTransactionOutput().get();
+
+        boolean returnData = (boolean)result.getDecodedReturnData();
+
+        return returnData;
+    }
+
+    private int getRecipientRetryCount(Address address) {
+        byte[] txData = ABIUtil.encodeMethodArguments("getRecipientRetryCount", address);
+        AvmRule.ResultWrapper result = avmRule.call(from, dappAddr, BigInteger.ZERO, txData);
+        TransactionStatus status1 = result.getReceiptStatus();
+        Assert.assertTrue(status1.isSuccess());
+
+        byte[] data = result.getTransactionResult().copyOfTransactionOutput().get();
+
+        int retryCount = (int)result.getDecodedReturnData();
+
+        return retryCount;
+    }
+
+    private long getRecipientLastRequestBlockNo(Address address) {
+        byte[] txData = ABIUtil.encodeMethodArguments("getRecipientLastRequestBlockNo", address);
+        AvmRule.ResultWrapper result = avmRule.call(from, dappAddr, BigInteger.ZERO, txData);
+        TransactionStatus status1 = result.getReceiptStatus();
+        Assert.assertTrue(status1.isSuccess());
+
+        byte[] data = result.getTransactionResult().copyOfTransactionOutput().get();
+
+        long lastRequestBlockNo = (long)result.getDecodedReturnData();
+
+        return lastRequestBlockNo;
     }
 
     private void allocateBalance(Address address, String balance) {

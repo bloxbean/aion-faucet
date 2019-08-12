@@ -5,6 +5,7 @@ import avm.Blockchain;
 import avm.Result;
 import org.aion.avm.tooling.abi.Callable;
 import org.aion.avm.tooling.abi.Initializable;
+import org.aion.avm.userlib.AionBuffer;
 import org.aion.avm.userlib.AionMap;
 import org.aion.avm.userlib.AionSet;
 
@@ -33,11 +34,9 @@ public class AionFaucetContract {
     private static BigInteger ONETIME_TRANSFER_AMOUNT = new BigInteger("1000000000000000000"); //1 Aion
 
     private static Set<Address> operators;
-
-    private static Map<Address, AccountDetails> recipients;
+    private static long totalRecipients;
 
     static {
-        recipients = new AionMap<>();
         operators = new AionSet<>();
     }
 
@@ -129,7 +128,9 @@ public class AionFaucetContract {
             accountDetails.lastRequestBlockNo = getBlockNumber();
             accountDetails.total = amount;
 
-            recipients.put(toAddress, accountDetails);
+            addRecipientDetailsToStorage(toAddress, accountDetails);
+
+            totalRecipients++;
 
             FaucetEvent.addressRegistered(toAddress);
         } else {
@@ -137,21 +138,71 @@ public class AionFaucetContract {
         }
     }
 
+    @Callable
+    public static long getTotalRecipients() {
+        return totalRecipients;
+    }
+
     /**
-     * Get register recipients
+     * Check if an address is already registered
+     * @param address
      * @return
      */
     @Callable
-    public static Address[] getRecipients() {
+    public static boolean isAddressRegistered(Address address) {
+        AccountDetails accountDetails = getRecipientDetailsFromStorage(address);
+        if(accountDetails != null)
+            return true;
+        else
+            return false;
+    }
 
-        Address[] addresses = new Address[recipients.size()];
+    /**
+     * Get recipient's retry count in a day
+     * @param address
+     * @return
+     */
+    @Callable
+    public static int getRecipientRetryCount(Address address) {
+        AccountDetails accountDetails = getRecipientDetailsFromStorage(address);
 
-        // Copying contents of s to arr[]
-        int i = 0;
-        for (Address a : recipients.keySet())
-            addresses[i++] = a;
+        if(accountDetails != null) {
+            return accountDetails.retryCount;
+        } else {
+            return -1;
+        }
+    }
 
-        return addresses;
+    /**
+     * Get total aion claimed by the recipient
+     * @param address
+     * @return
+     */
+    @Callable
+    public static BigInteger getRecipientTotal(Address address) {
+        AccountDetails accountDetails = getRecipientDetailsFromStorage(address);
+
+        if(accountDetails != null) {
+            return accountDetails.total;
+        } else {
+            return BigInteger.ZERO;
+        }
+    }
+
+    /**
+     * Get recipient's last requested block number
+     * @param address
+     * @return
+     */
+    @Callable
+    public static long getRecipientLastRequestBlockNo(Address address) {
+        AccountDetails accountDetails = getRecipientDetailsFromStorage(address);
+
+        if(accountDetails != null) {
+            return accountDetails.lastRequestBlockNo;
+        } else {
+            return -1;
+        }
     }
 
     /**
@@ -166,7 +217,7 @@ public class AionFaucetContract {
 
         if (result.isSuccess()) {
 
-            AccountDetails accountDetails = recipients.get(getCaller());
+            AccountDetails accountDetails = getRecipientDetailsFromStorage(getCaller());
             accountDetails.lastRequestBlockNo = getBlockNumber();
             accountDetails.total = accountDetails.total.add(ONETIME_TRANSFER_AMOUNT);
 
@@ -175,7 +226,7 @@ public class AionFaucetContract {
             else
                 accountDetails.retryCount++;
 
-            recipients.put(getCaller(), accountDetails);
+            addRecipientDetailsToStorage(getCaller(), accountDetails);
 
             FaucetEvent.topup(getCaller(), ONETIME_TRANSFER_AMOUNT);
 
@@ -187,31 +238,34 @@ public class AionFaucetContract {
 
     @Callable
     public static boolean canRequest(Address address) {
-        AccountDetails accountDetails = (AccountDetails) recipients.get(address);
+        AccountDetails accountDetails = getRecipientDetailsFromStorage(address);
 
         if (accountDetails == null)
             return true;
 
         if (Blockchain.getBlockNumber() - accountDetails.lastRequestBlockNo >= minBlockNoDelay) {
             accountDetails.retryCount = 0; //reset retryCount
+
+            //Update account details with new retrycount
+            addRecipientDetailsToStorage(address, accountDetails);
             return true;
         } else {
             if(accountDetails.retryCount < MAX_NO_OF_TRIES) //Can try MAX_NO_OF_TRIES with the time limit
                 return true;
             else {
-                FaucetEvent.maximumDailyRetryLimitReached(address, String.valueOf(accountDetails.retryCount));
+//                FaucetEvent.maximumDailyRetryLimitReached(address, String.valueOf(accountDetails.retryCount));
                 return false;
             }
         }
     }
 
     private static boolean isRegistered() {
-        boolean isRegistered = recipients.get(getCaller()) != null;
+        boolean isRegistered = getRecipientDetailsFromStorage(getCaller()) != null;
 
         if(isRegistered) {
             return true;
         } else {
-            FaucetEvent.addressNotRegistered();
+//            FaucetEvent.addressNotRegistered();
             return false;
         }
     }
@@ -239,6 +293,46 @@ public class AionFaucetContract {
     public static void destruct() {
         onlyOwner();
         Blockchain.selfDestruct(owner);
+    }
+
+    private static void addRecipientDetailsToStorage(Address address, AccountDetails accountDetails) {
+        putStorage(getRecipientKeyBytes(address), getRecipientAccountDetailsBytes(accountDetails));
+    }
+
+    private static AccountDetails getRecipientDetailsFromStorage(Address address) {
+        byte[] bytes = getStorage(getRecipientKeyBytes(address));
+
+        if(bytes == null || bytes.length == 0) {
+            return null;
+        }
+
+        AionBuffer buffer = AionBuffer.wrap(bytes);
+
+        int retryCount = buffer.getInt();
+        BigInteger total = buffer.get32ByteInt();
+        long lastRequestBlockNo = buffer.getLong();
+
+        AccountDetails accountDetails = new AccountDetails();
+        accountDetails.retryCount = retryCount;
+        accountDetails.total = total;
+        accountDetails.lastRequestBlockNo = lastRequestBlockNo;
+
+        return accountDetails;
+    }
+
+    private static byte[] getRecipientKeyBytes(Address address) {
+        return AionBuffer.allocate(Address.LENGTH)
+                .putAddress(address)
+                .getArray();
+    }
+
+    private static byte[] getRecipientAccountDetailsBytes(AccountDetails accountDetails) {
+        AionBuffer aionBuffer = AionBuffer.allocate(Integer.BYTES + 32 + Long.BYTES);
+
+        return aionBuffer.putInt(accountDetails.retryCount)
+                .put32ByteInt(accountDetails.total)
+                .putLong(accountDetails.lastRequestBlockNo)
+                .getArray();
     }
 
     /**

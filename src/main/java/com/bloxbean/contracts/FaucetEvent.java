@@ -23,13 +23,13 @@ public class FaucetEvent {
         Blockchain.log("TopUp".getBytes(), address.toByteArray(), balance.toByteArray());
     }
 
-    public static boolean maximumDailyRetryLimitReached(Address address, String noOfTimes) {
-        Blockchain.log("Error".getBytes(), ("Maximum daily retries : " + noOfTimes).getBytes());
-        return true;
-    }
-
-    public static boolean addressNotRegistered() {
-        Blockchain.log("Error".getBytes(), "Address is not registered yet".getBytes());
-        return true;
-    }
+//    public static boolean maximumDailyRetryLimitReached(Address address, String noOfTimes) {
+//        Blockchain.log("Error".getBytes(), ("Maximum daily retries : " + noOfTimes).getBytes());
+//        return true;
+//    }
+//
+//    public static boolean addressNotRegistered() {
+//        Blockchain.log("Error".getBytes(), "Address is not registered yet".getBytes());
+//        return true;
+//    }
 }
