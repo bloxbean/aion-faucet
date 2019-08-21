@@ -6,11 +6,9 @@ import avm.Result;
 import org.aion.avm.tooling.abi.Callable;
 import org.aion.avm.tooling.abi.Initializable;
 import org.aion.avm.userlib.AionBuffer;
-import org.aion.avm.userlib.AionMap;
 import org.aion.avm.userlib.AionSet;
 
 import java.math.BigInteger;
-import java.util.Map;
 import java.util.Set;
 
 import static avm.Blockchain.*;
@@ -26,12 +24,18 @@ public class AionFaucetContract {
     @Initializable
     private static Address owner;
 
+    private static BigInteger ONE_AION = new BigInteger("1000000000000000000"); //1 Aion
+
     private static long minBlockNoDelay = 8640; //10sec per block. 24hr delay. 6 x 60 x 24
 
     private static BigInteger operatorThresholdBalance = new BigInteger("1000000000000000000"); //1 AION
     private static BigInteger operatorTransferBalance = new BigInteger("10000000000000000000"); //10    AION
 
-    private static BigInteger ONETIME_TRANSFER_AMOUNT = new BigInteger("1000000000000000000"); //1 Aion
+    //Topup amount for new account
+    private static BigInteger initialTopupAmount = new BigInteger("500000000000000000"); //0.5 Aion
+
+    //Regular topup amount
+    private static BigInteger topupAmount = ONE_AION; //1 Aion
 
     private static Set<Address> operators;
     private static long totalRecipients;
@@ -101,16 +105,15 @@ public class AionFaucetContract {
     }
 
     /**
-     * Transfer specified amount to the address. This method can only be called by a operator account. Ideally, this method
+     * Transfer specified initialTopupAmount to the address. This method can only be called by a operator account. Ideally, this method
      * is called to credit newly generated account. The account registered through this operation can only request for topup
      * later. This method is called from the centralized server.
      * @param toAddress
-     * @param amount
      */
     @Callable
-    public static void registerAddress(Address toAddress, BigInteger amount) {
+    public static void registerAddress(Address toAddress) {
         onlyOperator();
-        require(BigInteger.ZERO.compareTo(amount) == -1);
+        require(BigInteger.ZERO.compareTo(initialTopupAmount) == -1);
 
         //Check operator's balance. Topup if required
         if (Blockchain.getBalance(getCaller()).compareTo(operatorThresholdBalance) == -1) {
@@ -118,7 +121,7 @@ public class AionFaucetContract {
             Blockchain.call(getCaller(), operatorTransferBalance, new byte[0], getRemainingEnergy());
         }
 
-        Result result = call(toAddress, amount, new byte[0], getRemainingEnergy());
+        Result result = call(toAddress, initialTopupAmount, new byte[0], getRemainingEnergy());
 
         if (result.isSuccess()) {
             println("Transfer was successful. " + getBalance(toAddress) + " - " + getBalanceOfThisContract());
@@ -126,7 +129,7 @@ public class AionFaucetContract {
             //Registered the account
             AccountDetails accountDetails = new AccountDetails();
             accountDetails.lastRequestBlockNo = getBlockNumber();
-            accountDetails.total = amount;
+            accountDetails.total = initialTopupAmount;
 
             addRecipientDetailsToStorage(toAddress, accountDetails);
 
@@ -213,13 +216,13 @@ public class AionFaucetContract {
         require(canRequest(getCaller()));
         require(isRegistered());
 
-        Result result = call(getCaller(), ONETIME_TRANSFER_AMOUNT, new byte[0], getRemainingEnergy());
+        Result result = call(getCaller(), topupAmount, new byte[0], getRemainingEnergy());
 
         if (result.isSuccess()) {
 
             AccountDetails accountDetails = getRecipientDetailsFromStorage(getCaller());
             accountDetails.lastRequestBlockNo = getBlockNumber();
-            accountDetails.total = accountDetails.total.add(ONETIME_TRANSFER_AMOUNT);
+            accountDetails.total = accountDetails.total.add(topupAmount);
 
             if(accountDetails.retryCount >= MAX_NO_OF_TRIES) //reset the counter
                 accountDetails.retryCount = 1;
@@ -228,7 +231,7 @@ public class AionFaucetContract {
 
             addRecipientDetailsToStorage(getCaller(), accountDetails);
 
-            FaucetEvent.topup(getCaller(), ONETIME_TRANSFER_AMOUNT);
+            FaucetEvent.topup(getCaller(), topupAmount);
 
             println("Topup was successful. " + getBalance(getCaller()) + " - " + getBalanceOfThisContract());
         } else {
@@ -284,6 +287,44 @@ public class AionFaucetContract {
     @Callable
     public static Address getOwner() {
         return owner;
+    }
+
+    /**
+     * Get predefined topup amount in nAmp
+     * @return Topup amount per topup
+     */
+    @Callable
+    public static BigInteger getTopupAmount() {
+        return topupAmount;
+    }
+
+    /**
+     * Set topup amount in Aion
+     * @param amount in Aion
+     */
+    @Callable
+    public static void setTopupAmount(BigInteger amount) {
+        onlyOwner();
+        topupAmount = ONE_AION.multiply(amount);
+    }
+
+    /**
+     * Get the initial topup amount for a new account.
+     * @return Initial topup amount in nAmp
+     */
+    @Callable
+    public static BigInteger getInitialTopupAmount() {
+        return initialTopupAmount;
+    }
+
+    /**
+     * Set initial topup amount,
+     * @param amount in Aion
+     */
+    @Callable
+    public static void setInitialTopupAmount(BigInteger amount) {
+        onlyOwner();
+        initialTopupAmount = ONE_AION.multiply(amount);
     }
 
     /**

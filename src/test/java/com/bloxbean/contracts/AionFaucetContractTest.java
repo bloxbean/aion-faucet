@@ -27,6 +27,7 @@ public class AionFaucetContractTest {
     private static BigInteger operatorTransferBalance = new BigInteger("10000000000000000000"); //10    AION
 
     private static BigInteger ONETIME_TRANSFER_AMOUNT = new BigInteger("1000000000000000000"); //1 Aion
+    private static BigInteger DEFAULT_INITIAL_TOPUP_AMOUNT = new BigInteger("500000000000000000"); //0.5 Aion
 
 
     private static BigInteger contractInitialalance = new BigInteger("500000000000000000000");
@@ -145,7 +146,7 @@ public class AionFaucetContractTest {
 
         Assert.assertTrue(new BigInteger("1000000000000000000").compareTo(avmRule.kernel.getBalance(new AionAddress(operator1.toByteArray()))) == 1);
 
-        register(operator1, dev1, ONE_AION);
+        register(operator1, dev1);
 
         Assert.assertTrue(new BigInteger("1000000000000000000").compareTo(avmRule.kernel.getBalance(new AionAddress(operator1.toByteArray()))) == -1);
     }
@@ -155,7 +156,7 @@ public class AionFaucetContractTest {
         addOperator(operator1);
         addOperator(operator2);
 
-        register(operator1, dev1, ONE_AION);
+        register(operator1, dev1);
         long blockNo = avmRule.kernel.getBlockNumber();
 
         Assert.assertEquals(1, getTotalRecipients());
@@ -168,7 +169,7 @@ public class AionFaucetContractTest {
         Assert.assertEquals(0, getRecipientRetryCount(dev1));
 
         avmRule.kernel.generateBlock();
-        register(operator1, dev2, ONE_AION);
+        register(operator1, dev2);
         blockNo = avmRule.kernel.getBlockNumber();
 
         Assert.assertEquals(2, getTotalRecipients());
@@ -186,8 +187,10 @@ public class AionFaucetContractTest {
     public void whenTopupWithMaxTryLimitThenOk() {
         setMinBlockDelay(3);
         addOperator(operator1);
-        register(operator1, dev1, new BigInteger("200000000000000000"));
-        Assert.assertEquals(new BigInteger("200000000000000000"), avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
+        register(operator1, dev1);
+
+        //Default value for initialtopup is 0.5 Aion
+        Assert.assertEquals(DEFAULT_INITIAL_TOPUP_AMOUNT, avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
 
         topup(dev1);
         topup(dev1);
@@ -203,8 +206,8 @@ public class AionFaucetContractTest {
     public void whenTopupWithMaxTryLimitThenException() {
         setMinBlockDelay(3);
         addOperator(operator1);
-        register(operator1, dev1, new BigInteger("200000000000000000"));
-        Assert.assertEquals(new BigInteger("200000000000000000"), avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
+        register(operator1, dev1);
+        Assert.assertEquals(DEFAULT_INITIAL_TOPUP_AMOUNT, avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
 
         topup(dev1);
         topup(dev1);
@@ -216,8 +219,8 @@ public class AionFaucetContractTest {
         setMinBlockDelay(3);
         addOperator(operator1);
 
-        register(operator1, dev1, new BigInteger("200000000000000000"));
-        Assert.assertEquals(new BigInteger("200000000000000000"), avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
+        register(operator1, dev1);
+        Assert.assertEquals(DEFAULT_INITIAL_TOPUP_AMOUNT, avmRule.kernel.getBalance(new AionAddress(dev1.toByteArray())));
 
         topup(dev1);
         for(int i=0; i< 4; i++)
@@ -238,6 +241,49 @@ public class AionFaucetContractTest {
 
         topup(dev1);
     }
+
+    @Test
+    public void whenTopupAmountIsSetThenCheckGetTopupAmount() {
+
+        BigInteger expectedTopupAmount = new BigInteger("5");
+
+        setTopupAmount(owner, expectedTopupAmount);
+        BigInteger actualTopupAmount = getTopupAmount();
+
+        Assert.assertEquals(expectedTopupAmount.multiply(ONE_AION), actualTopupAmount);
+    }
+
+    @Test
+    public void whenTopupAmountIsCalledByNonOwnerThenTransactionFails() {
+
+        BigInteger expectedTopupAmount = new BigInteger("8");
+
+        TransactionStatus status = setTopupAmount(from, expectedTopupAmount);
+
+        Assert.assertEquals(false, status.isSuccess());
+    }
+
+    @Test
+    public void whenInitialTopupAmountIsSetThenCheckGetInitialTopupAmount() {
+
+        BigInteger expectedTopupAmount = new BigInteger("8");
+
+        setInitialTopupAmount(owner, expectedTopupAmount);
+        BigInteger actualTopupAmount = getInitialTopupAmount();
+
+        Assert.assertEquals(expectedTopupAmount.multiply(ONE_AION), actualTopupAmount);
+    }
+
+    @Test
+    public void whenInitialTopupAmountIsCalledByNonOwnerThenTransactionFails() {
+
+        BigInteger expectedTopupAmount = new BigInteger("8");
+
+        TransactionStatus status = setInitialTopupAmount(from, expectedTopupAmount);
+
+        Assert.assertEquals(false, status.isSuccess());
+    }
+
 
     private void addOperator(Address operator) {
         byte[] txData = ABIUtil.encodeMethodArguments("addOperator", operator);
@@ -274,8 +320,8 @@ public class AionFaucetContractTest {
         return addresses;
     }
 
-    private void register(Address operator, Address dev, BigInteger amount) {
-        byte[] txData = ABIUtil.encodeMethodArguments("registerAddress", dev, amount);
+    private void register(Address operator, Address dev) {
+        byte[] txData = ABIUtil.encodeMethodArguments("registerAddress", dev);
         AvmRule.ResultWrapper result = avmRule.call(operator, dappAddr, BigInteger.ZERO, txData);
 
         // getReceiptStatus() checks the status of the transaction execution
@@ -355,6 +401,50 @@ public class AionFaucetContractTest {
 
     private void allocateBalance(Address address, String balance) {
         avmRule.kernel.adjustBalance(new AionAddress(address.toByteArray()), new BigInteger(balance));
+    }
+
+    private TransactionStatus setTopupAmount(Address caller, BigInteger amount) {
+        byte[] txData = ABIUtil.encodeMethodArguments("setTopupAmount", amount);
+        AvmRule.ResultWrapper result = avmRule.call(caller, dappAddr, BigInteger.ZERO, txData);
+
+        // getReceiptStatus() checks the status of the transaction execution
+        TransactionStatus status = result.getReceiptStatus();
+        return status;
+    }
+
+    private BigInteger getTopupAmount() {
+        byte[] txData = ABIUtil.encodeMethodArguments("getTopupAmount");
+        AvmRule.ResultWrapper result = avmRule.call(from, dappAddr, BigInteger.ZERO, txData);
+        TransactionStatus status1 = result.getReceiptStatus();
+        Assert.assertTrue(status1.isSuccess());
+
+        byte[] data = result.getTransactionResult().copyOfTransactionOutput().get();
+
+        BigInteger topupAmount = (BigInteger)result.getDecodedReturnData();
+
+        return topupAmount;
+    }
+
+    private TransactionStatus setInitialTopupAmount(Address caller, BigInteger amount) {
+        byte[] txData = ABIUtil.encodeMethodArguments("setInitialTopupAmount", amount);
+        AvmRule.ResultWrapper result = avmRule.call(caller, dappAddr, BigInteger.ZERO, txData);
+
+        // getReceiptStatus() checks the status of the transaction execution
+        TransactionStatus status = result.getReceiptStatus();
+        return status;
+    }
+
+    private BigInteger getInitialTopupAmount() {
+        byte[] txData = ABIUtil.encodeMethodArguments("getInitialTopupAmount");
+        AvmRule.ResultWrapper result = avmRule.call(from, dappAddr, BigInteger.ZERO, txData);
+        TransactionStatus status1 = result.getReceiptStatus();
+        Assert.assertTrue(status1.isSuccess());
+
+        byte[] data = result.getTransactionResult().copyOfTransactionOutput().get();
+
+        BigInteger topupAmount = (BigInteger)result.getDecodedReturnData();
+
+        return topupAmount;
     }
 
 }
