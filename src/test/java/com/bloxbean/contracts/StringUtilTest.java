@@ -8,7 +8,7 @@ public class StringUtilTest {
     @Test
     public void testSplit() {
 
-            String str = "1:20:060408:adam@cypherspace.org::1QTjaYd7niiQA/sc:ePa";
+            String str = "1:20:060408:adam@xxxxxxx.org::1QTjaYd7niiQA/sc:ePa";
 
         String[] tokens = StringUtil.splits(str, ':');
 
@@ -19,7 +19,7 @@ public class StringUtilTest {
         Assert.assertEquals("1", tokens[0]);
         Assert.assertEquals("20", tokens[1]);
         Assert.assertEquals("060408", tokens[2]);
-        Assert.assertEquals("adam@cypherspace.org", tokens[3]);
+        Assert.assertEquals("adam@xxxxxxx.org", tokens[3]);
         Assert.assertEquals("", tokens[4]);
         Assert.assertEquals("1QTjaYd7niiQA/sc", tokens[5]);
         Assert.assertEquals("ePa", tokens[6]);

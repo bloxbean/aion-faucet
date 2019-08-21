@@ -37,6 +37,9 @@ public class AionFaucetContract {
     //Regular topup amount
     private static BigInteger topupAmount = ONE_AION; //1 Aion
 
+    //An event will be thrown if contract's balance is less than contractMinimumBalance
+    private static BigInteger contractMinimumBalance = new BigInteger("10000000000000000000"); //10 Aion
+
     private static Set<Address> operators;
     private static long totalRecipients;
 
@@ -237,6 +240,11 @@ public class AionFaucetContract {
         } else {
             println("Topup failed to address : " + getCaller());
         }
+
+        BigInteger contractBalance = Blockchain.getBalanceOfThisContract();
+        if(contractBalance != null && contractBalance.compareTo(contractMinimumBalance) == -1) {
+            FaucetEvent.balanceBelowMinimum(contractBalance);
+        }
     }
 
     @Callable
@@ -325,6 +333,26 @@ public class AionFaucetContract {
     public static void setInitialTopupAmount(BigInteger amount) {
         onlyOwner();
         initialTopupAmount = ONE_AION.multiply(amount);
+    }
+
+    /**
+     * Get contract's minimum balance. Below this balance, an event will be published
+     * Default: 10 Aion
+     * @return contractMinimumBalance in nAmp
+     */
+    @Callable
+    public static BigInteger getContractMinimumBalance() {
+        return contractMinimumBalance;
+    }
+
+    /**
+     * Set contract's minimum balance.
+     * @param amount in Aion
+     */
+    @Callable
+    public static void setContractMinimumBalance(BigInteger amount) {
+        onlyOwner();
+        contractMinimumBalance = ONE_AION.multiply(amount);
     }
 
     /**

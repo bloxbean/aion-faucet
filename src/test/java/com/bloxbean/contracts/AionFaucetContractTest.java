@@ -7,6 +7,7 @@ import org.aion.avm.tooling.ABIUtil;
 import org.aion.avm.userlib.AionMap;
 import org.aion.avm.userlib.AionSet;
 import org.aion.types.AionAddress;
+import org.aion.types.Log;
 import org.aion.types.TransactionStatus;
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,6 +15,9 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.math.BigInteger;
+import java.util.List;
+
+import static org.junit.Assert.fail;
 
 public class AionFaucetContractTest {
     public static final BigInteger ONE_AION = new BigInteger("1000000000000000000");
@@ -243,6 +247,33 @@ public class AionFaucetContractTest {
     }
 
     @Test
+    public void givenContractBalanceLessThanMinimumWhenTopupThenPublishEvent() {
+        addOperator(operator1);
+        register(operator1, dev1);
+
+        setContractMinimumBalance(owner, new BigInteger("600")); //contract default bal is 500 Aion
+        AvmRule.ResultWrapper resultWrapper = topup(dev1);
+
+        List<Log> logs = resultWrapper.getTransactionResult().logs;
+
+        Assert.assertEquals(2, logs.size());
+    }
+
+    @Test
+    public void givenContractBalanceMOreThanMinimumWhenTopupThenNoPublishEvent() {
+        addOperator(operator1);
+        register(operator1, dev1);
+
+        setContractMinimumBalance(owner, new BigInteger("60")); //contract default bal is 500 Aion
+        AvmRule.ResultWrapper resultWrapper = topup(dev1);
+
+        List<Log> logs = resultWrapper.getTransactionResult().logs;
+
+        Assert.assertEquals(1, logs.size());
+    }
+
+
+    @Test
     public void whenTopupAmountIsSetThenCheckGetTopupAmount() {
 
         BigInteger expectedTopupAmount = new BigInteger("5");
@@ -280,6 +311,26 @@ public class AionFaucetContractTest {
         BigInteger expectedTopupAmount = new BigInteger("8");
 
         TransactionStatus status = setInitialTopupAmount(from, expectedTopupAmount);
+
+        Assert.assertEquals(false, status.isSuccess());
+    }
+
+    @Test
+    public void whenContractMinBalanceIsSetThenCheckGetContractMinbalance() {
+
+        BigInteger expectedTopupAmount = new BigInteger("9");
+
+        setContractMinimumBalance(owner, expectedTopupAmount);
+        BigInteger actualTopupAmount = getContractMinimumBalance();
+
+        Assert.assertEquals(expectedTopupAmount.multiply(ONE_AION), actualTopupAmount);
+    }
+
+    @Test
+    public void whenContractMinBalanceIsCalledByNonOwnerThenTransactionFails() {
+        BigInteger expectedTopupAmount = new BigInteger("8");
+
+        TransactionStatus status = setContractMinimumBalance(from, expectedTopupAmount);
 
         Assert.assertEquals(false, status.isSuccess());
     }
@@ -329,13 +380,15 @@ public class AionFaucetContractTest {
         Assert.assertTrue(status.isSuccess());
     }
 
-    private void topup(Address dev) {
+    private AvmRule.ResultWrapper topup(Address dev) {
         byte[] txData = ABIUtil.encodeMethodArguments("topUp");
         AvmRule.ResultWrapper result = avmRule.call(dev, dappAddr, BigInteger.ZERO, txData);
 
         // getReceiptStatus() checks the status of the transaction execution
         TransactionStatus status = result.getReceiptStatus();
         Assert.assertTrue(status.isSuccess());
+
+        return result;
     }
 
     private void setMinBlockDelay(long blockDelay) {
@@ -445,6 +498,28 @@ public class AionFaucetContractTest {
         BigInteger topupAmount = (BigInteger)result.getDecodedReturnData();
 
         return topupAmount;
+    }
+
+    private TransactionStatus setContractMinimumBalance(Address caller, BigInteger amount) {
+        byte[] txData = ABIUtil.encodeMethodArguments("setContractMinimumBalance", amount);
+        AvmRule.ResultWrapper result = avmRule.call(caller, dappAddr, BigInteger.ZERO, txData);
+
+        // getReceiptStatus() checks the status of the transaction execution
+        TransactionStatus status = result.getReceiptStatus();
+        return status;
+    }
+
+    private BigInteger getContractMinimumBalance() {
+        byte[] txData = ABIUtil.encodeMethodArguments("getContractMinimumBalance");
+        AvmRule.ResultWrapper result = avmRule.call(from, dappAddr, BigInteger.ZERO, txData);
+        TransactionStatus status1 = result.getReceiptStatus();
+        Assert.assertTrue(status1.isSuccess());
+
+        byte[] data = result.getTransactionResult().copyOfTransactionOutput().get();
+
+        BigInteger contractMinBalance = (BigInteger)result.getDecodedReturnData();
+
+        return contractMinBalance;
     }
 
 }
